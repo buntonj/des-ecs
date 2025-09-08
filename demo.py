@@ -193,14 +193,14 @@ class CommandExecutionSystem(System):
         position_component.y += command.delta_y
 
 
-def run_quick_sim(until=100):
+def run_quick_sim(until=100, num_entities=1000) -> World:
     """
     Creates instantiation of the above small example.
     """
     # Instantiation of the examples.
     component_manager = ComponentManager()
 
-    for _ in range(1000):
+    for _ in range(num_entities):
         component_manager.new_entity(
             components=(Position(), Commandable(), Destination(x=10, y=10))
         )
@@ -216,6 +216,7 @@ def run_quick_sim(until=100):
     world.recorder.to_polar_dataframe().write_parquet(
         pathlib.Path(".") / "data" / "generated" / "sim_db.parquet"
     )
+    return world
 
 
 if __name__ == "__main__":

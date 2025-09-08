@@ -2,7 +2,9 @@ black[jupyter]
 ipykernel
 isort
 mypy
+nbformat
 pint
+plotly
 polars
 pylint
 simpy
