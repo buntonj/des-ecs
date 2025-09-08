@@ -118,6 +118,7 @@ class ComponentManager:
         """
         # Remove entity ID from entity dictionary.
         component_dict = self.entity_to_components.pop(entity_id)
+        # Also remove it from the component type dictionaries that referenced it.
         for c_type in component_dict.components():
             self.type_to_entities[c_type].remove(entity_id)
 

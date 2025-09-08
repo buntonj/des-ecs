@@ -4,6 +4,7 @@ Actual instantiations of various bases in the DES-ECS core.
 
 import dataclasses
 import enum
+import pathlib
 import random
 
 import simpy
@@ -79,7 +80,8 @@ class ExecutingCommand(Component):
 
 class MoveCommandSystem(System):  # pylint: disable=too-few-public-methods
     """
-    Command issuing system.  For entities that are `Commandable` and have `RailPosition`s.
+    Command issuing system.  For entities that are `Commandable`, and have `Position`s and
+    `Destinations`.
     """
 
     required_components = (Commandable, Position, Destination)
@@ -87,34 +89,35 @@ class MoveCommandSystem(System):  # pylint: disable=too-few-public-methods
     def update(
         self, env: simpy.Environment, component_manager: ComponentManager
     ) -> None:
-        # Iterate over all commandable entities.
+        # Iterate over all relevant entities.
         for entity, components in component_manager.get_components(
             component_types=self.required_components
         ):
+            # If the Commandable component says we are idling
             if components.get(Commandable).state == CommandState.IDLING:
+                # Load in the current position
                 x, y = (
                     components.get(Position).x,
                     components.get(Position).y,
                 )
+                # Load in the destination
                 dest_x, dest_y = (
                     components.get(Destination).x,
                     components.get(Destination).y,
                 )
+                # If the entity still has sufficient distance to travel
                 delta_x, delta_y = (dest_x - x) / 2, (dest_y - y) / 2
                 if max(abs(delta_x), abs(delta_y)) > 1e-2:
+                    # Add the IncomingCommand component to it, with a command in it
                     component_manager.add_components(
                         entity,
-                        [
-                            IncomingCommand(
-                                MoveCommand(delta_x=delta_x, delta_y=delta_y)
-                            )
-                        ],
+                        [IncomingCommand(MoveCommand(delta_x, delta_y))],
                     )
 
 
 class CommandExecutionSystem(System):
     """
-    Command execution system.  For `Commandable` entities with an `IncomingCommand`.
+    Command execution system.  For `Commandable` entities with an `IncomingCommand` and `Position`.
     """
 
     required_components = (Commandable, IncomingCommand, Position)
@@ -162,7 +165,7 @@ class CommandExecutionSystem(System):
 
     def entity_cleanup(
         self,
-        triggered_event: simpy.Event,
+        triggering_event: simpy.Event,
         entity: int,
         components: ComponentDict,
         component_manager: ComponentManager,
@@ -170,12 +173,16 @@ class CommandExecutionSystem(System):
         """
         Commands for changing entity's components upon command completion.
         """
-        yield triggered_event
+        # Yield to the triggering event so we don't do anything until it is time
+        yield triggering_event
+        # After the triggering event (command completion) hits, update position
         self.update_position(
             position_component=components.get(Position),
             command=components.get(ExecutingCommand).command,
         )
+        # Set the state of the command to IDLING
         components.get(Commandable).state = CommandState.IDLING
+        # Remove current command component
         component_manager.remove_components(entity, [ExecutingCommand])
 
     def update_position(self, position_component: Position, command: MoveCommand):
@@ -206,10 +213,11 @@ def run_quick_sim(until=100):
     )
 
     world.run(until)
-    world.recorder.to_polar_dataframe().to_pandas().to_parquet(
-        "./data/generated/sim_db.parquet"
+    world.recorder.to_polar_dataframe().write_parquet(
+        pathlib.Path(".") / "data" / "generated" / "sim_db.parquet"
     )
 
 
 if __name__ == "__main__":
     run_quick_sim()
+    # TODO: Sanity check plot of positions over time
